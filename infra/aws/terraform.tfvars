@@ -1,0 +1,6 @@
+region    = "us-east-1"
+project   = "db-migration-api"
+db_user   = "postgres"
+db_password = "Password123!"
+db_name   = "hr"
+image_tag = "v1"

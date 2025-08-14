@@ -1,0 +1,13 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+# Mantener el lock
+!.terraform.lock.hcl
+
+# Binarios locales
+.tools/
+*.exe

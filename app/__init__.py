@@ -1,4 +1,5 @@
 """
-Paquete principal de la API de migración.
-Contiene módulos para modelos, esquemas, routers, utilidades y configuración de base de datos.
+Main package of the migration API.
+Contains modules for models, schemas, routers, utilities, and database configuration.
 """
+

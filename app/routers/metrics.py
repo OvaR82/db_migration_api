@@ -24,7 +24,7 @@ def _csv_response(rows, headers: list[str], filename: str) -> Response:
 def hiring_by_quarter(
     year: int = Query(2021, ge=1900, le=2100),
     format: str = Query("json", pattern="^(json|csv)$"),
-    include_unknown: bool = Query(True, description="Incluir filas sin dept/job como '(Unknown)'"),
+    include_unknown: bool = Query(True, description="Include rows without department/job as '(Unknown)'"),
     db: Session = Depends(get_db),
 ):
     dialect = db.bind.dialect.name
@@ -54,16 +54,15 @@ def hiring_by_quarter(
             GROUP BY department, job
             ORDER BY department ASC, job ASC;
         """)
-    # ...
     else:
-      unknown_filter = "" if include_unknown else "AND e.department_id IS NOT NULL AND e.job_id IS NOT NULL"
-      sql = text(f"""
-          -- Normalizamos el timestamp a 'YYYY-MM-DD HH:MM:SS' (sin zona)
+        unknown_filter = "" if include_unknown else "AND e.department_id IS NOT NULL AND e.job_id IS NOT NULL"
+        sql = text(f"""
+          -- Normalize timestamp to 'YYYY-MM-DD HH:MM:SS' (without timezone)
           WITH norm AS (
             SELECT
               COALESCE(d.name, '(Unknown)') AS department,
               COALESCE(j.title, '(Unknown)') AS job,
-              -- Reemplaza 'T' por espacio y corta a 19 chars para quitar 'Z' y offsets
+              -- Replace 'T' with space and truncate to 19 chars to remove 'Z' and offsets
               substr(replace(e.hire_date, 'T', ' '), 1, 19) AS dt
             FROM employees e
             LEFT JOIN departments d ON d.id = e.department_id
@@ -101,7 +100,7 @@ def hiring_by_quarter(
 def departments_above_mean(
     year: int = Query(2021, ge=1900, le=2100),
     format: str = Query("json", pattern="^(json|csv)$"),
-    include_unknown: bool = Query(True, description="Incluir '(Unknown)' como departamento cuando falte"),
+    include_unknown: bool = Query(True, description="Include '(Unknown)' as department when missing"),
     db: Session = Depends(get_db),
 ):
     dialect = db.bind.dialect.name
@@ -110,7 +109,7 @@ def departments_above_mean(
     else:
         date_cond = "datetime(e.hire_date) >= datetime(:y || '-01-01T00:00:00Z') AND datetime(e.hire_date) < datetime(:y_next || '-01-01T00:00:00Z')"
 
-    # si no quieres unknown, exige dept no nulo
+    # If unknowns are not allowed, require department to be not null
     base_where = date_cond + ("" if include_unknown else " AND e.department_id IS NOT NULL")
 
     sql = text(f"""
@@ -134,4 +133,3 @@ def departments_above_mean(
     if format == "csv":
         return _csv_response(rows, ["id", "department", "hired"], f"departments_above_mean_{year}.csv")
     return rows
-

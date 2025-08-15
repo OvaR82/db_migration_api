@@ -14,7 +14,7 @@ provider "aws" {
 
 # ---------- ECR ----------
 resource "aws_ecr_repository" "api" {
-  name                 = "${var.project}-api"
+  name                  = "${var.project}-api"
   image_tag_mutability = "MUTABLE"
   force_delete         = true
 }
@@ -44,7 +44,7 @@ resource "aws_security_group" "apprunner" {
   vpc_id      = data.aws_vpc.default.id
 }
 
-# Permite 5432 desde el SG del conector de App Runner hacia RDS
+# Allow 5432 from App Runner SG to RDS
 resource "aws_security_group_rule" "rds_from_apprunner" {
   type                     = "ingress"
   security_group_id        = aws_security_group.rds.id
@@ -105,14 +105,15 @@ resource "aws_iam_role_policy_attachment" "attach" {
   policy_arn = aws_iam_policy.secrets_read.arn
 }
 
-# ECS Fargate + ALB para la API
+# ECS Fargate + ALB for the API
+
 # Log group
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/ecs/${var.project}-api"
   retention_in_days = 14
 }
 
-# SG del ALB (HTTP público)
+# ALB Security Group (public HTTP access)
 resource "aws_security_group" "alb" {
   name        = "${var.project}-alb-sg"
   description = "ALB public"
@@ -134,7 +135,7 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# SG del servicio ECS (solo del ALB hacia la app)
+# ECS Service SG (allow traffic only from the ALB)
 resource "aws_security_group" "service" {
   name        = "${var.project}-svc-sg"
   description = "ECS service"
@@ -156,7 +157,7 @@ resource "aws_security_group" "service" {
   }
 }
 
-# Permitir ECS->RDS (sustituye la regla que antes era desde App Runner)
+# Allow ECS → RDS (replaces the previous App Runner rule)
 resource "aws_security_group_rule" "rds_from_ecs" {
   type                     = "ingress"
   security_group_id        = aws_security_group.rds.id
@@ -203,17 +204,20 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# ECS cluster
+# ECS Cluster
 resource "aws_ecs_cluster" "api" {
   name = "${var.project}-cluster"
 }
 
-# Roles para la tarea ECS
+# IAM Roles for ECS tasks
 data "aws_iam_policy_document" "ecs_task_assume" {
   statement {
     effect = "Allow"
     actions = ["sts:AssumeRole"]
-    principals { type = "Service", identifiers = ["ecs-tasks.amazonaws.com"] }
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
   }
 }
 
@@ -222,29 +226,31 @@ resource "aws_iam_role" "ecs_task_execution" {
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
 }
 
-# Permisos estándar de ejecución (ECR + logs)
+# Attach default ECS execution policy (for ECR, logs, etc.)
 resource "aws_iam_role_policy_attachment" "ecs_exec_policy" {
   role       = aws_iam_role.ecs_task_execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Permiso para leer Secrets Manager (DATABASE_URL)
+# Permission to read Secrets Manager (DATABASE_URL)
 data "aws_iam_policy_document" "secrets_read" {
   statement {
     actions   = ["secretsmanager:GetSecretValue"]
     resources = [aws_secretsmanager_secret.db_url.arn]
   }
 }
+
 resource "aws_iam_policy" "secrets_read" {
   name   = "${var.project}-ecs-secrets-read"
   policy = data.aws_iam_policy_document.secrets_read.json
 }
+
 resource "aws_iam_role_policy_attachment" "attach_secrets_read" {
   role       = aws_iam_role.ecs_task_execution.name
   policy_arn = aws_iam_policy.secrets_read.arn
 }
 
-# Definición de la tarea (Fargate)
+# Fargate Task Definition
 resource "aws_ecs_task_definition" "api" {
   family                   = "${var.project}-task"
   network_mode             = "awsvpc"
@@ -253,34 +259,35 @@ resource "aws_ecs_task_definition" "api" {
   memory                   = "512"
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
 
-  container_definitions = jsonencode([
-    {
-      name      = "api"
-      image     = "${aws_ecr_repository.api.repository_url}:${var.image_tag}"
-      essential = true
-      portMappings = [{ containerPort = 8000, hostPort = 8000, protocol = "tcp" }]
-      environment = [
-        { name = "PORT", value = "8000" }
-      ]
-      secrets = [
-        {
-          name      = "DATABASE_URL"
-          valueFrom = aws_secretsmanager_secret.db_url.arn
-        }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-region        = var.region
-          awslogs-group         = aws_cloudwatch_log_group.api.name
-          awslogs-stream-prefix = "ecs"
-        }
+  container_definitions = jsonencode([{
+    name      = "api"
+    image     = "${aws_ecr_repository.api.repository_url}:${var.image_tag}"
+    essential = true
+    portMappings = [{
+      containerPort = 8000
+      hostPort      = 8000
+      protocol      = "tcp"
+    }]
+    environment = [{
+      name  = "PORT"
+      value = "8000"
+    }]
+    secrets = [{
+      name      = "DATABASE_URL"
+      valueFrom = aws_secretsmanager_secret.db_url.arn
+    }]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-region        = var.region
+        awslogs-group         = aws_cloudwatch_log_group.api.name
+        awslogs-stream-prefix = "ecs"
       }
     }
-  ])
+  }])
 }
 
-# Servicio ECS (tareas con IP pública, detrás del ALB)
+# ECS Service (Fargate tasks behind the ALB)
 resource "aws_ecs_service" "api" {
   name            = "${var.project}-svc"
   cluster         = aws_ecs_cluster.api.arn
@@ -302,4 +309,3 @@ resource "aws_ecs_service" "api" {
 
   depends_on = [aws_lb_listener.http]
 }
-

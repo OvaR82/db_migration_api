@@ -13,7 +13,7 @@ from .types import TableName, EXPECTED_HEADERS
 from .validators import parse_date, parse_decimal
 
 # ----------------------------
-# Configuración
+# Configuration
 # ----------------------------
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "config")
 MAP_FILE = os.path.abspath(os.path.join(CONFIG_DIR, "header_mappings.yaml"))
@@ -25,7 +25,7 @@ def _load_yaml(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
-# Defaults seguros si los YAML no existen
+# Safe defaults if YAML files are missing
 HEADER_MAPS = _load_yaml(MAP_FILE)
 SETTINGS = {
     "ingest": {
@@ -37,7 +37,7 @@ SETTINGS = {
 SETTINGS.update(_load_yaml(SET_FILE) or {})
 
 # ----------------------------
-# Utilidades de IO
+# IO Utilities
 # ----------------------------
 def _open_source(source: str) -> io.StringIO:
     if source.startswith(("http://", "https://")):
@@ -47,27 +47,27 @@ def _open_source(source: str) -> io.StringIO:
     if os.path.isfile(source):
         with open(source, "r", encoding="utf-8") as f:
             return io.StringIO(f.read())
-    # contenido directo
+    # Direct content
     return io.StringIO(source)
 
 def _clean_header(h: str) -> str:
-    # Quita BOM, espacios y baja a minúsculas
+    # Remove BOM, strip spaces, and lowercase
     return h.replace("\ufeff", "").strip().lower()
 
 # ----------------------------
-# Normalización de headers
+# Header normalization
 # ----------------------------
 def _normalize_headers(headers: List[str], table: TableName) -> Dict[str, str]:
     expected = EXPECTED_HEADERS[table]
 
-    # mapa alias -> estándar (desde YAML)
+    # alias -> standard (from YAML)
     aliases = HEADER_MAPS.get(table, {}) if isinstance(HEADER_MAPS, dict) else {}
     alias_to_std = {}
     for std, alias_list in aliases.items():
         for alias in alias_list:
             alias_to_std[_clean_header(alias)] = std
 
-    # construir mapping desde headers reales
+    # Build mapping from actual headers
     mapping: Dict[str, str] = {}
     expected_lower = [c.lower() for c in expected]
 
@@ -87,7 +87,7 @@ def _normalize_headers(headers: List[str], table: TableName) -> Dict[str, str]:
     return mapping
 
 # ----------------------------
-# Coerción de tipos por tabla
+# Type coercion by table
 # ----------------------------
 def _coerce_row(table: TableName, row: Dict[str, str]) -> Dict[str, object]:
     try:
@@ -99,8 +99,8 @@ def _coerce_row(table: TableName, row: Dict[str, str]) -> Dict[str, object]:
             row["id"] = int(row["id"])
             row["department_id"] = int(row["department_id"]) if row.get("department_id") not in (None, "",) else None
             row["job_id"] = int(row["job_id"]) if row.get("job_id") not in (None, "",) else None
-            row["hire_date"] = parse_date(row["hire_date"])  
-            # 'name' ya es string
+            row["hire_date"] = parse_date(row["hire_date"])
+            # 'name' is already a string
             return row
 
         return row
@@ -112,7 +112,7 @@ def _coerce_row(table: TableName, row: Dict[str, str]) -> Dict[str, object]:
 # UPSERT helpers
 # ----------------------------
 def _conflict_target(table: TableName) -> str:
-    # Usamos la PK id como target
+    # Use PK 'id' as conflict target
     return "id"
 
 def _update_set_clause(table: TableName) -> str:
@@ -139,17 +139,17 @@ def _build_upsert_sql(dialect: str, table: TableName, mode: str) -> str:
             return f"INSERT INTO {table} ({col_list}) VALUES ({placeholders}) ON CONFLICT({target}) DO UPDATE SET {_update_set_clause(table)}"
         return f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
 
-    # Otros dialectos
+    # Other dialects
     return f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
 
 # ----------------------------
-# Ingesta principal
+# Main ingestion logic
 # ----------------------------
 def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: bool = False, mode: str = "insert"):
     """
-    Ingesta transaccional desde CSV.
-    - skip_invalid_rows=True: omite filas con FKs/fechas inválidas y cuenta cuántas.
-    - mode: "insert" (por defecto) o "upsert".
+    Transactional ingestion from CSV.
+    - skip_invalid_rows=True: skip rows with invalid FKs/dates and count them.
+    - mode: "insert" (default) or "upsert".
       * Postgres: upsert = COPY -> staging temp -> INSERT ... ON CONFLICT DO UPDATE
       * SQLite:   upsert = INSERT ... ON CONFLICT(id) DO UPDATE
     """
@@ -158,11 +158,11 @@ def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: b
     reader = csv.reader(sio)
     headers = next(reader, None)
     if not headers:
-        raise ValueError("CSV vacío o sin encabezados.")
+        raise ValueError("CSV is empty or missing headers.")
 
     header_map = _normalize_headers(headers, table)
 
-    # 1) Parseo + coerción + conteo de omitidas
+    # 1) Parsing + coercion + skipped row count
     sio.seek(0)
     dict_reader = csv.DictReader(sio)
     normalized_rows: List[Dict[str, object]] = []
@@ -170,26 +170,26 @@ def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: b
 
     required = EXPECTED_HEADERS[table]
 
-    for idx, r in enumerate(dict_reader, start=2):  # empieza en 2 por header
+    for idx, r in enumerate(dict_reader, start=2):  # start=2 because of header
         try:
             norm = {header_map.get(k, k): v for k, v in r.items()}
             norm = {k: v for k, v in norm.items() if k in required}
 
-            # Coerción por tabla
+            # Table-specific coercion
             if table in ("departments", "jobs"):
                 norm["id"] = int(norm["id"])
             elif table == "employees":
-                # Validar FKs
+                # Validate FKs
                 dep = norm.get("department_id")
                 job = norm.get("job_id")
-                if dep in (None, "", "NULL", "null"): raise ValueError("department_id vacío o nulo")
-                if job in (None, "", "NULL", "null"): raise ValueError("job_id vacío o nulo")
+                if dep in (None, "", "NULL", "null"): raise ValueError("department_id is empty or null")
+                if job in (None, "", "NULL", "null"): raise ValueError("job_id is empty or null")
                 norm["department_id"] = int(dep)
                 norm["job_id"] = int(job)
 
                 # name
                 name = norm.get("name", "")
-                if not name or not name.strip(): raise ValueError("name vacío")
+                if not name or not name.strip(): raise ValueError("name is empty")
                 norm["name"] = name.strip()
 
                 # id
@@ -198,10 +198,10 @@ def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: b
                 # hire_date
                 hd = norm.get("hire_date")
                 if hd is None or str(hd).strip() == "":
-                    raise ValueError("hire_date vacía o nula.")
+                    raise ValueError("hire_date is empty or null.")
                 norm["hire_date"] = parse_date(hd)  # datetime aware
             else:
-                raise ValueError(f"Tabla no soportada: {table}")
+                raise ValueError(f"Unsupported table: {table}")
 
             normalized_rows.append(norm)
 
@@ -209,20 +209,19 @@ def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: b
             if skip_invalid_rows:
                 errors += 1
                 continue
-            raise ValueError(f"Error en fila {idx}: {e}") from e
+            raise ValueError(f"Error in row {idx}: {e}") from e
 
     if not normalized_rows:
-        # Nada que insertar
+        # Nothing to insert
         return {"inserted": 0, "skipped": errors}
 
-    # 2) INSERT / UPSERT por dialecto
+    # 2) INSERT / UPSERT by dialect
     if dialect.startswith("postgresql"):
         if mode == "insert":
-            # === COPY directo a tabla destino ===
-            # Antes de COPY, si hay filas con NULL en columnas NOT NULL, fallaría todo.
-            # Filtramos para evitarlas si skip_invalid_rows=True
+            # === Direct COPY to target table ===
+            # If any rows have NULLs in NOT NULL columns, COPY would fail.
+            # Filter them out if skip_invalid_rows=True
             def row_ok(r: Dict[str, object]) -> bool:
-                # todas las columnas requeridas deben no ser None
                 return all(r.get(col) is not None for col in required)
 
             if skip_invalid_rows:
@@ -230,10 +229,10 @@ def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: b
                 skipped_by_nulls = len(normalized_rows) - len(valid_rows)
                 errors += skipped_by_nulls
             else:
-                # Validación estricta
+                # Strict validation
                 bad_idx = [i for i, r in enumerate(normalized_rows) if not row_ok(r)]
                 if bad_idx:
-                    raise ValueError(f"Existen {len(bad_idx)} filas con columnas NOT NULL vacías. Usa skip_invalid_rows=true.")
+                    raise ValueError(f"{len(bad_idx)} rows have NULLs in NOT NULL columns. Use skip_invalid_rows=true.")
                 valid_rows = normalized_rows
 
             # COPY
@@ -258,13 +257,12 @@ def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: b
             return {"inserted": len(valid_rows), "skipped": errors}
 
         elif mode == "upsert":
-            # === COPY a STAGING + MERGE (ON CONFLICT) ===
+            # === COPY to STAGING + MERGE (ON CONFLICT) ===
             cols = ",".join(required)
             with db.begin():
-                # staging temporal
                 db.execute(text(f"CREATE TEMP TABLE staging_{table} AS SELECT * FROM {table} WITH NO DATA;"))
 
-                # COPY a staging
+                # COPY to staging
                 out = io.StringIO()
                 writer = csv.DictWriter(out, fieldnames=required)
                 writer.writeheader()
@@ -277,7 +275,7 @@ def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: b
                         writer.writerow(r2)
                         valid_rows.append(r)
                     elif not skip_invalid_rows:
-                        raise ValueError("Fila con NOT NULL vacío. Usa skip_invalid_rows=true o limpia el CSV.")
+                        raise ValueError("Row has NULLs in NOT NULL columns. Use skip_invalid_rows=true or clean the CSV.")
                     else:
                         errors += 1
                 out.seek(0)
@@ -290,8 +288,7 @@ def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: b
                         out
                     )
 
-                # UPSERT (asumimos PK = id)
-                # Nota: ajusta las columnas de set según tu tabla
+                # UPSERT (assuming PK = id)
                 set_cols = [c for c in required if c != "id"]
                 set_clause = ", ".join([f"{c}=excluded.{c}" for c in set_cols])
                 db.execute(text(f"""
@@ -304,7 +301,7 @@ def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: b
             return {"inserted": len(valid_rows), "skipped": errors}
 
         else:
-            raise ValueError("mode inválido. Use 'insert' o 'upsert'.")
+            raise ValueError("Invalid mode. Use 'insert' or 'upsert'.")
 
     else:
         # === SQLite ===
@@ -331,5 +328,4 @@ def ingest_csv(db: Session, table: TableName, content: str, skip_invalid_rows: b
             return {"inserted": len(normalized_rows), "skipped": errors}
 
         else:
-            raise ValueError("mode inválido. Use 'insert' o 'upsert'.")
-
+            raise ValueError("Invalid mode. Use 'insert' or 'upsert'.")

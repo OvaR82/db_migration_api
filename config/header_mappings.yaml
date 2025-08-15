@@ -1,16 +1,17 @@
-# Mapeos de encabezados alternativos -> estándar esperado.
-# Si tus CSV usan nombres distintos, agrégalo aquí.
+# Header alias mappings for CSV ingestion.
+# Maps possible variations of column names to standard field names expected by the system.
+
 departments:
-  id: ["id","dept_id","department_id"]
-  name: ["name","department_name","dept_name"]
+  id: ["id", "dept_id", "department_id"]
+  name: ["name", "department_name", "dept_name"]
 
 jobs:
-  id: ["id","job_id"]
-  title: ["title","job_title","position"]
+  id: ["id", "job_id"]
+  title: ["title", "job_title", "position"]
 
 employees:
-  id: ["id","emp_id","employee_id"]
-  name: ["first_name","firstname","given_name","nombre","last_name","lastname","surname","apellido"]
-  department_id: ["department_id","dept_id"]
-  job_id: ["job_id","position_id"]
-  hire_date: ["hire_date","start_date","fecha_alta"]
+  id: ["id", "emp_id", "employee_id"]
+  name: ["first_name", "firstname", "given_name", "nombre", "last_name", "lastname", "surname", "apellido"]
+  department_id: ["department_id", "dept_id"]
+  job_id: ["job_id", "position_id"]
+  hire_date: ["hire_date", "start_date", "fecha_alta"]

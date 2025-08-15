@@ -11,11 +11,11 @@ async def ingest_csv_upload(
     table: TableName = Form(...),
     file: UploadFile = File(None),
     source_path: str | None = Form(None),
-    skip_invalid_rows: bool = Form(False, description="Omitir filas inválidas en vez de fallar toda la carga"),
+    skip_invalid_rows: bool = Form(False, description="Skip invalid rows instead of failing the entire load"),
     db: Session = Depends(get_db)
 ):
     if not file and not source_path:
-        raise HTTPException(status_code=400, detail="Proveer 'file' o 'source_path'.")
+        raise HTTPException(status_code=400, detail="Provide either 'file' or 'source_path'.")
 
     content = (await file.read()).decode("utf-8") if file else _open_source(source_path).read()
 
@@ -25,4 +25,3 @@ async def ingest_csv_upload(
         raise HTTPException(status_code=400, detail=str(e))
 
     return {"status": "ok", "table": table, **(result or {})}
-

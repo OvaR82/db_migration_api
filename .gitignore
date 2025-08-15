@@ -1,13 +1,37 @@
-# Terraform
-**/.terraform/*
-*.tfstate
-*.tfstate.*
-crash.log
-override.tf
+# === Terraform ===
+**/.terraform/*         # Local Terraform state and caches
+*.tfstate               # Terraform state files
+*.tfstate.*             # Backup state files
+crash.log               # Crash reports from Terraform
+override.tf             # Override files (local only)
 override.tf.json
-# Mantener el lock
+
+# Keep the dependency lock file under version control
 !.terraform.lock.hcl
 
-# Binarios locales
-.tools/
-*.exe
+# === Local binaries / tools ===
+.tools/                 # Custom local tools folder
+*.exe                   # Windows executables
+
+# === Environment / Secrets ===
+.env
+.env.*
+secrets.auto.tfvars
+terraform.tfvars
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Tests
+.pytest_cache/
+.coverage*
+htmlcov/
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,5 +1,4 @@
 ingest:
-  use_copy_for_postgres: false
-  fail_fast_on_header_mismatch: false
-  upsert: "update"   # opciones: "ignore" | "update"
-
+  use_copy_for_postgres: false       # Use COPY command in PostgreSQL for bulk inserts (recommended for performance)
+  fail_fast_on_header_mismatch: false  # Stop ingestion if CSV headers don't match expected schema
+  upsert: "update"                   # Options: "ignore" | "update" - determines how to handle duplicate primary keys

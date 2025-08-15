@@ -1,220 +1,156 @@
-# Database Migration API
-A robust FastAPI-based REST API for managing database migrations and data ingestion with support for CSV file processing, metrics tracking, and comprehensive CRUD operations.
+# DB Migration API
+
+A robust, production-ready REST API built with FastAPI for ingesting and managing HR-related data — departments, jobs, and employees — via structured CSV uploads. Ideal for use cases involving **data migration**, **ETL pipelines**, and **API-first ingestion workflows**.
 
 ## Features
 
-- **FastAPI Framework**: High-performance, modern Python web framework
-- **Database Migrations**: Alembic-based database schema management
-- **CSV Data Ingestion**: Automated processing and validation of CSV files
-- **RESTful API**: Complete CRUD operations for departments, employees, jobs, and metrics
-- **Docker Support**: Containerized deployment with Docker and Docker Compose
-- **AWS Infrastructure**: Terraform configurations for cloud deployment
-- **Comprehensive Testing**: Pytest-based test suite
-- **Type Safety**: Pydantic models for data validation
+- **CSV Data Ingestion**: Upload and process structured CSVs for employees, departments, and jobs
+- **RESTful Endpoints**: Clear, consistent API for triggering ingestion
+- **Database Migration**: Schema versioning and upgrades using Alembic
+- **Monitoring & Metrics**: Built-in endpoints for hiring analytics
+- **Dockerized**: Minimal and optimized production image
+- **Automated Infra**: AWS cloud provisioning with Terraform (ECS, RDS, ALB, etc.)
+- **Test Coverage**: Pytest unit tests and Locust performance testing
 
 ## Table of Contents
 
-- [Installation](#installation)
-- [Usage](#usage)
-- [API Endpoints](#api-endpoints)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [API Documentation](#api-documentation)
 - [Database Schema](#database-schema)
-- [Data Ingestion](#data-ingestion)
 - [Testing](#testing)
 - [Deployment](#deployment)
+- [Configuration](#configuration)
+- [Data Format](#data-format)
+- [Development](#development)
+- [Monitoring](#monitoring)
 - [Contributing](#contributing)
 
-## Installation
+## Architecture
+
+```
+db_migration_api/
+├── app/ # FastAPI app
+│ ├── routers/ # API route handlers
+│ ├── models.py # SQLAlchemy models
+│ ├── schemas.py # Pydantic input schemas
+│ └── utils/ # CSV parsing and ingestion
+├── config/ # Settings and header mappings
+├── data/ # Example CSVs
+├── infra/ # Terraform infrastructure
+├── tests/ # Unit and load tests
+├── Dockerfile # Production build
+└── docker-compose.yml # Local container orchestration
+```
+
+## Quick Start
 
 ### Prerequisites
 
-- Python 3.8+
-- PostgreSQL 12+
+- Python 3.10+
 - Docker & Docker Compose (optional)
+- PostgreSQL or SQLite
+- Terraform CLI (for AWS)
 
 ### Local Development
 
-1. **Clone the repository**
    ```bash
    git clone <repository-url>
    cd db_migration_api
-   ```
-
-2. **Create virtual environment**
-   ```bash
    python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
+   source venv/bin/activate
    pip install -r requirements.txt
-   ```
-
-4. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your database credentials
-   ```
-
-5. **Run database migrations**
-   ```bash
+   $env:DATABASE_URL="sqlite:///./data/migration.sqlite3"
    alembic upgrade head
-   ```
-
-6. **Start the application**
-   ```bash
    uvicorn app.main:app --reload
    ```
 
-### Docker Installation
+### Docker (Standalone or Compose)
 
-1. **Build and run with Docker Compose**
+1. **Using Docker Compose**
    ```bash
    docker-compose up --build
    ```
 
 2. **Access the application**
    - API: http://localhost:8000
-   - API Documentation: http://localhost:8000/docs
+   - Docs (Swagger): http://localhost:8000/docs
 
-## Usage
+## API Documentation
 
-### API Documentation
+### Base URL
+```
+http://localhost:8000
+```
 
-Once the application is running, you can access:
-- **Interactive API docs**: http://localhost:8000/docs
-- **Alternative API docs**: http://localhost:8000/redoc
+### Health Check
 
-### Quick Start
+   GET /health – Basic readiness probe (used by ECS, ALB, etc.)
 
-1. **Ingest sample data**
-   ```bash
-   curl -X POST "http://localhost:8000/api/v1/ingest/all" \
-     -H "accept: application/json"
-   ```
+### Ingestion Endpoints
 
-2. **Get metrics**
-   ```bash
-   curl -X GET "http://localhost:8000/api/v1/metrics/employees-by-quarter" \
-     -H "accept: application/json"
-   ```
+   Method	Endpoint	Description
+   POST	/departments/upload	Upload departments CSV
+   POST	/jobs/upload	Upload jobs CSV
+   POST	/employees/upload	Upload employees CSV
+   POST	/departments/batch	Upload departments via JSON payload
+   POST	/jobs/batch	Upload jobs via JSON payload
+   POST	/employees/batch	Upload employees via JSON payload
+   POST	/ingest/csv	Dynamic ingestion using form + CSV
 
-## 🔗 API Endpoints
-
-### Departments
-- `GET /api/v1/departments` - List all departments
-- `POST /api/v1/departments` - Create a new department
-- `GET /api/v1/departments/{id}` - Get department by ID
-- `PUT /api/v1/departments/{id}` - Update department
-- `DELETE /api/v1/departments/{id}` - Delete department
-
-### Employees
-- `GET /api/v1/employees` - List all employees with pagination
-- `POST /api/v1/employees` - Create a new employee
-- `GET /api/v1/employees/{id}` - Get employee by ID
-- `PUT /api/v1/employees/{id}` - Update employee
-- `DELETE /api/v1/employees/{id}` - Delete employee
-
-### Jobs
-- `GET /api/v1/jobs` - List all jobs
-- `POST /api/v1/jobs` - Create a new job
-- `GET /api/v1/jobs/{id}` - Get job by ID
-- `PUT /api/v1/jobs/{id}` - Update job
-- `DELETE /api/v1/jobs/{id}` - Delete job
-
-### Data Ingestion
-- `POST /api/v1/ingest/departments` - Ingest departments from CSV
-- `POST /api/v1/ingest/jobs` - Ingest jobs from CSV
-- `POST /api/v1/ingest/employees` - Ingest employees from CSV
-- `POST /api/v1/ingest/all` - Ingest all data from CSV files
-
-### Metrics
-- `GET /api/v1/metrics/employees-by-quarter` - Get employees hired by quarter
-- `GET /api/v1/metrics/departments-above-mean` - Get departments above mean hiring
+### Metrics Endpoints
+   Method	Endpoint	Description
+   GET	/metrics/hiring_by_quarter	Aggregated hires by department/job/quarter
+   GET	/metrics/departments_above_mean	Departments with above-average hiring count
 
 ## Database Schema
 
 ### Tables
 
 #### departments
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER | Primary key |
-| department | VARCHAR(255) | Department name |
-
+   Column	Type	Description
+   id	INTEGER	Primary key
+   name	VARCHAR	Unique department name
 #### jobs
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER | Primary key |
-| job | VARCHAR(255) | Job title |
+   Column	Type	Description
+   id	INTEGER	Primary key
+   title	VARCHAR	Unique job title
 
 #### employees
-| Column | Type | Description |
-|--------|------|-------------|
-| id | INTEGER | Primary key |
-| name | VARCHAR(255) | Employee name |
-| datetime | TIMESTAMP | Hire date |
-| department_id | INTEGER | Foreign key to departments |
-| job_id | INTEGER | Foreign key to jobs |
-
-## Data Ingestion
-
-### CSV File Structure
-
-The system expects CSV files with the following structure:
-
-#### departments.csv
-```csv
-id,department
-1,Engineering
-2,Marketing
-3,Sales
-```
-
-#### jobs.csv
-```csv
-id,job
-1,Software Engineer
-2,Data Analyst
-3,Product Manager
-```
-
-#### employees.csv
-```csv
-id,name,datetime,department_id,job_id
-1,John Doe,2021-07-15 09:00:00,1,1
-2,Jane Smith,2021-08-20 10:30:00,2,2
-```
-
-### Configuration
-
-Configuration files are located in `config/`:
-- `header_mappings.yaml`: CSV column mappings
-- `settings.yaml`: Application settings
+   Column	Type	Description
+   id	INTEGER	Primary key
+   name	VARCHAR	Employee name
+   department_id	INTEGER	Foreign key to departments
+   job_id	INTEGER	Foreign key to jobs
+   hire_date	DATE	Date of hiring
 
 ## Testing
 
-### Run tests
-```bash
-# Run all tests
-pytest
+### Run Unit Tests
 
-# Run with coverage
-pytest --cov=app tests/
+1. **Unit Tests**
+   ```bash
+   pytest tests/ -v
+   ```
 
-# Run specific test file
-pytest tests/test_employees.py
-```
+2. **Test CSV upload and DB writes**
+   ```bash
+   pytest tests/test_upload_*.py
+   ```
 
-### Test structure
+3. **Run Load Tests with Locust**
+   ```bash
+   cd tests/performance
+   locust -f locustfile.py --host=http://localhost:8000
+   ```
+
+### Test Structure
 ```
 tests/
-├── conftest.py          # Test configuration
-├── test_departments.py  # Department tests
-├── test_employees.py    # Employee tests
-├── test_jobs.py         # Job tests
-├── test_ingest.py       # Data ingestion tests
-└── test_metrics.py      # Metrics tests
+├── conftest.py              # Test configuration
+├── test_ingest_*.py        # Ingestion tests
+└── performance/
+    └── locustfile.py       # Load testing
 ```
 
 ## Deployment
@@ -224,19 +160,13 @@ tests/
 uvicorn app.main:app --reload
 ```
 
-### Docker
+### Production (Dockerized with Gunicorn)
 ```bash
-docker-compose up --build
+gunicorn app.main:app -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 2 --timeout 120
 ```
 
 ### AWS Deployment
-
-1. **Configure AWS credentials**
-   ```bash
-   aws configure
-   ```
-
-2. **Deploy with Terraform**
+1. **Initialize Terraform**
    ```bash
    cd infra/aws
    terraform init
@@ -244,18 +174,98 @@ docker-compose up --build
    terraform apply
    ```
 
+2. **Provisioned resources:**
+   ECR (Docker image)
+   ECS (API service)
+   RDS PostgreSQL
+   ALB (HTTP access)
+   CloudWatch Logs
+   Secrets Manager (DATABASE_URL)
+
+## Configuration
+
 ### Environment Variables
+Create a `.env` file with:
+```bash
+# Database
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/hr
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost/db` |
-| `API_HOST` | API host binding | `0.0.0.0` |
-| `API_PORT` | API port | `8000` |
-| `LOG_LEVEL` | Logging level | `INFO` |
+# APP
+API_HOST=0.0.0.0
+API_PORT=8000
+DEBUG=True
 
-### Development Guidelines
+# AWS (Terraform)
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+```
 
-- Follow PEP 8 style guidelines
-- Add tests for new features
-- Update documentation as needed
-- Ensure all tests pass before submitting
+### Config Files
+- `config/settings.yaml` – Ingestion behavior, upsert modes
+- `config/header_mappings.yaml` – Accepted aliases for CSV headers
+
+## Data Format
+
+### CSV Requirements
+
+#### departments.csv
+```csv
+id,name
+1,Engineering
+2,Marketing
+3,Sales
+```
+
+#### jobs.csv
+```csv
+id,title
+1,Software Engineer
+2,Product Manager
+3,Sales Representative
+```
+
+#### employees.csv
+```csv
+id,name,department_id,job_id,hire_date
+1,John Doe,1,1,2023-01-15
+2,Jane Smith,2,2,2023-02-20
+```
+
+## Development
+
+### Code Style
+- Follow PEP 8 guidelines
+- Use black and ruff for linting and formatting
+
+### Migrations (Alembic)
+```bash
+alembic revision --autogenerate -m "your message"
+alembic upgrade head
+alembic downgrade -1
+```
+
+### Adding a New Table
+1. Define model in models.py
+2. Add Pydantic schema in schemas.py
+3. Update ingestion logic if applicable
+4. Add test in tests/
+
+## Monitoring
+
+### Health & Observability
+- **GET** /health → used by ALB / ECS
+- /docs → Swagger UI
+- Structured logging enabled by default
+
+### Logs
+- Local: stdout
+- ECS: CloudWatch Logs group /ecs/<project>-api
+
+## Contributing
+
+1. Fork the repository
+2. Create a branch: git checkout -b feature/your-feature
+3. Commit your work: git commit -m 'Add your feature'
+4. Push it: git push origin feature/your-feature
+5. Open a Pull Request

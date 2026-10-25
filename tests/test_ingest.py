@@ -62,3 +62,16 @@ def test_ingest_rejects_paths_outside_data_dir(client):
 
 def test_ingest_requires_file_or_path(client):
     assert client.post("/ingest/csv", data={"table": "jobs"}).status_code == 400
+
+
+def test_upload_endpoints_per_table(client):
+    for table in ("departments", "jobs", "employees"):
+        with open(DATA / f"{table}.csv", "rb") as f:
+            r = client.post(
+                f"/{table}/upload",
+                files={"file": (f"{table}.csv", f, "text/csv")},
+                data={"skip_invalid_rows": "true"},
+            )
+        assert r.status_code == 200, r.text
+        assert r.json()["table"] == table
+        assert r.json()["inserted"] > 0

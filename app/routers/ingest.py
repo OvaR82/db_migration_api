@@ -13,16 +13,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
+Mode = Literal["insert", "ignore", "update"]
+MODE_DESCRIPTION = "Por defecto, ingest.upsert de settings.yaml"
+SKIP_DESCRIPTION = "Omitir filas inválidas en vez de fallar toda la carga"
 
-@router.post("/csv")
-async def ingest_csv_upload(
-    table: TableName = Form(...),
-    file: UploadFile | None = File(None),
-    source_path: str | None = Form(None, description="Nombre de un CSV dentro del directorio de datos del servidor"),
-    skip_invalid_rows: bool = Form(False, description="Omitir filas inválidas en vez de fallar toda la carga"),
-    mode: Literal["insert", "ignore", "update"] | None = Form(None, description="Por defecto, ingest.upsert de settings.yaml"),
-    db: Session = Depends(get_db),
-):
+
+async def run_ingest(
+    db: Session,
+    table: TableName,
+    file: UploadFile | None,
+    source_path: str | None,
+    skip_invalid_rows: bool,
+    mode: str | None,
+) -> dict:
+    """Lee el CSV (subido o de DATA_DIR), lo carga y traduce los errores a HTTP."""
     if not file and not source_path:
         raise HTTPException(status_code=400, detail="Proveer 'file' o 'source_path'.")
 
@@ -44,3 +48,15 @@ async def ingest_csv_upload(
         raise HTTPException(status_code=500, detail="Error de base de datos.")
 
     return {"status": "ok", "table": table, **result}
+
+
+@router.post("/csv")
+async def ingest_csv_upload(
+    table: TableName = Form(...),
+    file: UploadFile | None = File(None),
+    source_path: str | None = Form(None, description="Nombre de un CSV dentro del directorio de datos del servidor"),
+    skip_invalid_rows: bool = Form(False, description=SKIP_DESCRIPTION),
+    mode: Mode | None = Form(None, description=MODE_DESCRIPTION),
+    db: Session = Depends(get_db),
+):
+    return await run_ingest(db, table, file, source_path, skip_invalid_rows, mode)

@@ -42,6 +42,7 @@ The API container waits for Postgres, runs `alembic upgrade head` and starts Gun
 |--------|------|-------------|
 | GET | `/health` | Health check |
 | POST | `/ingest/csv` | Load a CSV into `departments`, `jobs` or `employees` |
+| POST | `/departments/upload`, `/jobs/upload`, `/employees/upload` | Same as `/ingest/csv` for that table (`file`, `skip_invalid_rows`, `mode`) |
 | POST | `/departments/batch` | Insert 1–1000 departments (JSON) |
 | POST | `/jobs/batch` | Insert 1–1000 jobs (JSON) |
 | POST | `/employees/batch` | Insert 1–1000 employees (JSON) |
@@ -128,6 +129,13 @@ pytest --cov=app
 ```
 
 Tests run against a temporary SQLite database and use the sample files in `data/`.
+
+Load test with [Locust](https://locust.io) against a running API:
+
+```bash
+pip install locust
+locust -f tests/performance/locustfile.py --host http://localhost:8000
+```
 
 ## AWS deployment (Terraform)
 

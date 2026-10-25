@@ -17,20 +17,20 @@ from .validators import parse_date
 logger = logging.getLogger(__name__)
 
 # ----------------------------
-# Configuración
+# Configuration
 # ----------------------------
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CONFIG_DIR = os.path.join(BASE_DIR, "config")
 MAP_FILE = os.path.join(CONFIG_DIR, "header_mappings.yaml")
 SET_FILE = os.path.join(CONFIG_DIR, "settings.yaml")
 
-# Único directorio desde el que se permite leer CSV con `source_path`.
+# Only directory `source_path` is allowed to read CSV files from.
 DATA_DIR = os.path.realpath(os.getenv("INGEST_DATA_DIR", os.path.join(BASE_DIR, "data")))
 
 MODELS = {"departments": Department, "jobs": Job, "employees": Employee}
 MODES = ("insert", "ignore", "update")
 
-# Máximo de filas rechazadas que se devuelven en la respuesta (todas se loguean).
+# Max rejected rows returned in the response (all of them are logged).
 MAX_REPORTED_ERRORS = 100
 
 
@@ -64,34 +64,34 @@ SETTINGS = _deep_merge(DEFAULT_SETTINGS, _load_yaml(SET_FILE))
 def default_mode() -> str:
     mode = SETTINGS["ingest"].get("upsert") or "insert"
     if mode not in MODES:
-        raise ValueError(f"settings.yaml: ingest.upsert inválido '{mode}'. Use {MODES}.")
+        raise ValueError(f"settings.yaml: invalid ingest.upsert '{mode}'. Use {MODES}.")
     return mode
 
 
 # ----------------------------
-# Lectura de archivos locales
+# Local file reading
 # ----------------------------
 def read_source_file(source_path: str) -> str:
-    """Lee un CSV dentro de DATA_DIR. Rechaza rutas fuera de ese directorio."""
+    """Read a CSV inside DATA_DIR. Rejects paths outside that directory."""
     full = os.path.realpath(os.path.join(DATA_DIR, source_path))
     if os.path.commonpath([full, DATA_DIR]) != DATA_DIR:
-        raise ValueError("source_path debe estar dentro del directorio de datos.")
+        raise ValueError("source_path must be inside the data directory.")
     if not os.path.isfile(full):
-        raise ValueError(f"Archivo no encontrado: {source_path}")
+        raise ValueError(f"File not found: {source_path}")
     with open(full, "r", encoding="utf-8-sig") as f:
         return f.read()
 
 
 # ----------------------------
-# Normalización de headers
+# Header normalization
 # ----------------------------
 def _clean_header(h: str) -> str:
-    # Quita BOM, espacios y baja a minúsculas
-    return h.replace("﻿", "").strip().lower()
+    # Strip BOM and spaces, lowercase
+    return h.replace("\ufeff", "").strip().lower()
 
 
 def _normalize_headers(headers: List[str], table: TableName) -> Dict[str, str]:
-    """Devuelve {header_original: columna_estándar}. Falla si falta alguna columna."""
+    """Return {original_header: standard_column}. Fails if a column is missing."""
     expected = EXPECTED_HEADERS[table]
 
     alias_to_std = {}
@@ -107,7 +107,7 @@ def _normalize_headers(headers: List[str], table: TableName) -> Dict[str, str]:
         if not std:
             continue
         if std in mapping.values():
-            raise ValueError(f"Varias columnas del CSV corresponden a '{std}' en {table}. Got: {headers}")
+            raise ValueError(f"Several CSV columns map to '{std}' in {table}. Got: {headers}")
         mapping[h] = std
 
     missing = [c for c in expected if c not in mapping.values()]
@@ -117,17 +117,17 @@ def _normalize_headers(headers: List[str], table: TableName) -> Dict[str, str]:
 
 
 # ----------------------------
-# Validación por fila
+# Per-row validation
 # ----------------------------
 def _required_int(value, field: str) -> int:
     if value is None or str(value).strip() in ("", "NULL", "null"):
-        raise ValueError(f"{field} vacío o nulo")
+        raise ValueError(f"{field} is empty or null")
     return int(value)
 
 
 def _required_str(value, field: str) -> str:
     if value is None or not str(value).strip():
-        raise ValueError(f"{field} vacío")
+        raise ValueError(f"{field} is empty")
     return str(value).strip()
 
 
@@ -139,20 +139,20 @@ def _coerce_row(table: TableName, row: Dict[str, str]) -> Dict[str, object]:
     if table == "employees":
         hd = row.get("hire_date")
         if hd is None or not str(hd).strip():
-            raise ValueError("hire_date vacía o nula")
+            raise ValueError("hire_date is empty or null")
         return {
             "id": _required_int(row.get("id"), "id"),
             "name": _required_str(row.get("name"), "name"),
             "department_id": _required_int(row.get("department_id"), "department_id"),
             "job_id": _required_int(row.get("job_id"), "job_id"),
-            # La columna es DATE: se guarda la fecha en UTC.
+            # The column is DATE: store the UTC date.
             "hire_date": parse_date(hd).astimezone(timezone.utc).date(),
         }
     raise ValueError(f"Tabla no soportada: {table}")
 
 
 # ----------------------------
-# Escritura en BD
+# Database writes
 # ----------------------------
 def _write_rows(db: Session, table: TableName, rows: List[Dict[str, object]], mode: str) -> None:
     model = MODELS[table]
@@ -169,7 +169,7 @@ def _write_rows(db: Session, table: TableName, rows: List[Dict[str, object]], mo
         stmt = sqlite.insert(model.__table__)
     else:
         if mode != "insert":
-            raise ValueError(f"Modo '{mode}' no soportado para el dialecto {dialect}.")
+            raise ValueError(f"Mode '{mode}' is not supported for dialect {dialect}.")
         db.execute(model.__table__.insert(), rows)
         return
 
@@ -184,7 +184,7 @@ def _write_rows(db: Session, table: TableName, rows: List[Dict[str, object]], mo
 
 
 def _copy_postgres(db: Session, table: TableName, cols: List[str], rows, mode: str) -> None:
-    """COPY a una tabla temporal y luego INSERT ... SELECT (psycopg 3)."""
+    """COPY into a temp table, then INSERT ... SELECT (psycopg 3)."""
     col_list = ", ".join(cols)
     conflict = ""
     if mode == "ignore":
@@ -202,7 +202,7 @@ def _copy_postgres(db: Session, table: TableName, cols: List[str], rows, mode: s
 
 
 # ----------------------------
-# Ingesta principal
+# Main ingestion
 # ----------------------------
 def ingest_csv(
     db: Session,
@@ -212,33 +212,33 @@ def ingest_csv(
     mode: str | None = None,
 ) -> dict:
     """
-    Ingesta transaccional desde CSV (todo o nada).
-    - skip_invalid_rows=True: omite filas inválidas y las informa en `errors`.
-    - mode: "insert" | "ignore" | "update". Por defecto, `ingest.upsert` de settings.yaml.
+    Transactional CSV ingestion (all or nothing).
+    - skip_invalid_rows=True: skip invalid rows and report them in `errors`.
+    - mode: "insert" | "ignore" | "update". Defaults to `ingest.upsert` in settings.yaml.
     """
     mode = mode or default_mode()
     if mode not in MODES:
-        raise ValueError(f"mode inválido '{mode}'. Use {MODES}.")
+        raise ValueError(f"Invalid mode '{mode}'. Use {MODES}.")
 
     reader = csv.reader(io.StringIO(content))
     headers = next(reader, None)
     if not headers:
-        raise ValueError("CSV vacío o sin encabezados.")
+        raise ValueError("Empty CSV or missing header row.")
     header_map = _normalize_headers(headers, table)
 
     rows: List[Dict[str, object]] = []
     errors: List[Dict[str, object]] = []
-    for line_no, values in enumerate(reader, start=2):  # la línea 1 es el header
+    for line_no, values in enumerate(reader, start=2):  # line 1 is the header
         if not any(v.strip() for v in values):
-            continue  # línea vacía
+            continue  # blank line
         raw = {header_map[h]: v for h, v in zip(headers, values) if h in header_map}
         try:
             rows.append(_coerce_row(table, raw))
         except ValueError as e:
             if not skip_invalid_rows:
-                raise ValueError(f"Error en fila {line_no}: {e}") from e
+                raise ValueError(f"Error in row {line_no}: {e}") from e
             errors.append({"row": line_no, "error": str(e)})
-            logger.warning("ingest %s: fila %d omitida: %s", table, line_no, e)
+            logger.warning("ingest %s: skipped row %d: %s", table, line_no, e)
 
     if rows:
         with db.begin():

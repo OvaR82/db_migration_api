@@ -17,11 +17,11 @@ async def upload_departments(
     mode: Mode | None = Form(None, description=MODE_DESCRIPTION),
     db: Session = Depends(get_db),
 ):
-    """Carga un CSV de departments (equivale a POST /ingest/csv con table=departments)."""
+    """Load a departments CSV (same as POST /ingest/csv with table=departments)."""
     return await run_ingest(db, "departments", file, None, skip_invalid_rows, mode)
 
 
 @router.post("/batch")
 def batch_insert_departments(items: DepartmentBatch, db: Session = Depends(get_db)):
-    """Inserta de 1 a 1000 registros en una sola transacción."""
+    """Insert 1 to 1000 records in a single transaction."""
     return bulk_insert(db, Department, items)

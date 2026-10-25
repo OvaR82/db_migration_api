@@ -1,9 +1,9 @@
-"""Prueba de carga con Locust.
+"""Load test with Locust.
 
     pip install locust
     locust -f tests/performance/locustfile.py --host http://localhost:8000
 
-Usa mode=update para que las cargas repetidas no fallen por id duplicado.
+Uses mode=update so repeated loads do not fail on duplicate ids.
 """
 import os
 

@@ -73,7 +73,7 @@ The response includes `inserted`, `skipped` and up to 100 `errors` (`{"row": <li
 
 ```bash
 curl -X POST http://localhost:8000/employees/batch -H "Content-Type: application/json" \
-  -d '[{"id": 5000, "name": "Ana Pérez", "department_id": 1, "job_id": 1, "hire_date": "2021-03-01"}]'
+  -d '[{"id": 5000, "name": "Jane Doe", "department_id": 1, "job_id": 1, "hire_date": "2021-03-01"}]'
 ```
 
 ### Metrics

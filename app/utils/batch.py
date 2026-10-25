@@ -8,18 +8,18 @@ logger = logging.getLogger(__name__)
 
 
 def bulk_insert(db: Session, model, items) -> dict:
-    """Inserta un lote en una sola transacción (todo o nada)."""
+    """Insert a batch in a single transaction (all or nothing)."""
     payload = [i.model_dump() for i in items]
     try:
         with db.begin():
             db.execute(model.__table__.insert(), payload)
     except IntegrityError:
-        logger.exception("batch %s: error de integridad", model.__tablename__)
+        logger.exception("batch %s: integrity error", model.__tablename__)
         raise HTTPException(
             status_code=409,
-            detail="Conflicto de integridad: id duplicado o referencia inexistente.",
+            detail="Integrity conflict: duplicate id or missing reference.",
         )
     except SQLAlchemyError:
-        logger.exception("batch %s: error de base de datos", model.__tablename__)
-        raise HTTPException(status_code=500, detail="Error de base de datos.")
+        logger.exception("batch %s: database error", model.__tablename__)
+        raise HTTPException(status_code=500, detail="Database error.")
     return {"inserted": len(payload)}

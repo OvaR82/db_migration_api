@@ -11,7 +11,7 @@ config = context.config
 if config.config_file_name is not None and config.get_section("loggers"):
     fileConfig(config.config_file_name)
 
-# También escribe la URL en el config para que otros comandos la vean
+# Also store the URL in the config so other commands can see it
 if DB_URL:
     config.set_main_option("sqlalchemy.url", DB_URL)
 
@@ -25,7 +25,7 @@ def run_migrations_offline():
 
 def run_migrations_online():
     from sqlalchemy import engine_from_config, pool
-    # Con prefix="" la clave debe ser **url** (no sqlalchemy.url)
+    # With prefix="" the key must be "url" (not "sqlalchemy.url")
     opts = {"url": DB_URL or config.get_main_option("sqlalchemy.url")}
     connectable = engine_from_config(opts, prefix="", poolclass=pool.NullPool)
     with connectable.connect() as connection:

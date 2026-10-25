@@ -26,7 +26,7 @@ def test_ingest_without_skip_fails_on_first_invalid_row(client):
     client.post("/ingest/csv", data={"table": "jobs", "source_path": "jobs.csv"})
     r = client.post("/ingest/csv", data={"table": "employees", "source_path": "employees.csv"})
     assert r.status_code == 400
-    assert "Error en fila" in r.json()["detail"]
+    assert "Error in row" in r.json()["detail"]
 
 
 def test_ingest_upload_and_modes(client):
@@ -35,12 +35,12 @@ def test_ingest_upload_and_modes(client):
     assert r.status_code == 200
     assert r.json()["inserted"] == 2
 
-    # Mismo id con insert -> conflicto
+    # Same id with insert -> conflict
     files = {"file": ("d.csv", "id,name\n1,Ventas\n", "text/csv")}
     r = client.post("/ingest/csv", data={"table": "departments", "mode": "insert"}, files=files)
     assert r.status_code == 409
 
-    # update -> sobreescribe
+    # update -> overwrites
     r = client.post("/ingest/csv", data={"table": "departments", "mode": "update"}, files=files)
     assert r.status_code == 200
     r = client.post("/ingest/csv", data={"table": "departments", "mode": "ignore"}, files=files)

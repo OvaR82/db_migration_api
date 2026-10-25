@@ -1,5 +1,5 @@
 ingest:
-  # true: en Postgres carga con COPY a una tabla temporal (más rápido en archivos grandes).
+  # true: on Postgres, load via COPY into a temp table (faster for large files).
   use_copy_for_postgres: false
-  # Qué hacer si el id ya existe: "insert" (falla) | "ignore" (lo omite) | "update" (lo actualiza)
+  # When the id already exists: "insert" (fail) | "ignore" (skip) | "update" (overwrite)
   upsert: "update"

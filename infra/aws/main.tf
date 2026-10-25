@@ -72,14 +72,14 @@ resource "aws_secretsmanager_secret_version" "db_url_ver" {
   secret_string = "postgresql+psycopg://${var.db_user}:${var.db_password}@${aws_db_instance.postgres.address}:5432/${var.db_name}"
 }
 
-# ECS Fargate + ALB para la API
+# ECS Fargate + ALB for the API
 # Log group
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/ecs/${var.project}-api"
   retention_in_days = 14
 }
 
-# SG del ALB (HTTP público)
+# ALB security group (public HTTP)
 resource "aws_security_group" "alb" {
   name        = "${var.project}-alb-sg"
   description = "ALB public"
@@ -101,7 +101,7 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# SG del servicio ECS (solo del ALB hacia la app)
+# ECS service security group (only ALB -> app)
 resource "aws_security_group" "service" {
   name        = "${var.project}-svc-sg"
   description = "ECS service"
@@ -123,7 +123,7 @@ resource "aws_security_group" "service" {
   }
 }
 
-# Permitir ECS -> RDS
+# Allow ECS -> RDS
 resource "aws_security_group_rule" "rds_from_ecs" {
   type                     = "ingress"
   security_group_id        = aws_security_group.rds.id
@@ -175,7 +175,7 @@ resource "aws_ecs_cluster" "api" {
   name = "${var.project}-cluster"
 }
 
-# Roles para la tarea ECS
+# IAM roles for the ECS task
 data "aws_iam_policy_document" "ecs_task_assume" {
   statement {
     effect  = "Allow"
@@ -192,13 +192,13 @@ resource "aws_iam_role" "ecs_task_execution" {
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
 }
 
-# Permisos estándar de ejecución (ECR + logs)
+# Standard execution permissions (ECR + logs)
 resource "aws_iam_role_policy_attachment" "ecs_exec_policy" {
   role       = aws_iam_role.ecs_task_execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Permiso para leer Secrets Manager (DATABASE_URL)
+# Permission to read Secrets Manager (DATABASE_URL)
 data "aws_iam_policy_document" "secrets_read" {
   statement {
     actions   = ["secretsmanager:GetSecretValue"]
@@ -214,7 +214,7 @@ resource "aws_iam_role_policy_attachment" "attach_secrets_read" {
   policy_arn = aws_iam_policy.secrets_read.arn
 }
 
-# Definición de la tarea (Fargate)
+# Task definition (Fargate)
 resource "aws_ecs_task_definition" "api" {
   family                   = "${var.project}-task"
   network_mode             = "awsvpc"
@@ -250,7 +250,7 @@ resource "aws_ecs_task_definition" "api" {
   ])
 }
 
-# Servicio ECS (tareas con IP pública, detrás del ALB)
+# ECS service (tasks with public IP, behind the ALB)
 resource "aws_ecs_service" "api" {
   name            = "${var.project}-svc"
   cluster         = aws_ecs_cluster.api.arn

@@ -2,21 +2,21 @@ from datetime import datetime, timezone
 
 def parse_date(s: str) -> datetime:
     """
-    Acepta ISO 8601: 'YYYY-MM-DDTHH:MM:SSZ' o con offset '+00:00'.
-    Valida que no sea futura.
+    Accepts ISO 8601: 'YYYY-MM-DDTHH:MM:SSZ' or with an offset like '+00:00'.
+    Rejects future dates.
     """
     if not s or not s.strip():
-        raise ValueError("Fecha/hora vacía o nula.")
+        raise ValueError("Empty or null datetime.")
 
     txt = s.strip()
-    # Normaliza sufijo Z a +00:00 para fromisoformat
+    # Normalize the Z suffix to +00:00 for fromisoformat
     if txt.endswith("Z"):
         txt = txt[:-1] + "+00:00"
 
     try:
         dt = datetime.fromisoformat(txt)
     except ValueError:
-        # fallback a formatos comunes
+        # Fall back to common formats
         for fmt in ("%Y-%m-%d %H:%M:%S%z", "%Y-%m-%dT%H:%M:%S%z"):
             try:
                 dt = datetime.strptime(txt, fmt)
@@ -24,12 +24,12 @@ def parse_date(s: str) -> datetime:
             except ValueError:
                 continue
         else:
-            raise ValueError(f"Fecha inválida: {s}")
+            raise ValueError(f"Invalid date: {s}")
 
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
 
     if dt > datetime.now(tz=timezone.utc):
-        raise ValueError(f"hire_date futura no permitida: {dt.isoformat()}")
+        raise ValueError(f"Future hire_date is not allowed: {dt.isoformat()}")
 
     return dt

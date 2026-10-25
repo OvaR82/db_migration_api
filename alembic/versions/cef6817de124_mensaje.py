@@ -1,4 +1,4 @@
-"""mensaje
+"""empty revision (no schema changes)
 
 Revision ID: cef6817de124
 Revises: 0001_init_tables

@@ -10,7 +10,7 @@ def test_batch_departments_insert_and_duplicate(client):
 
     r = client.post("/departments/batch", json=[{"id": 1, "name": "Otro"}])
     assert r.status_code == 409
-    assert "Insert failed" not in r.text  # no se filtran errores crudos de la BD
+    assert "Insert failed" not in r.text  # raw database errors are not leaked
 
 
 def test_batch_size_limits(client):

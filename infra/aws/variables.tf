@@ -25,5 +25,5 @@ variable "db_name" {
 
 variable "image_tag" {
   type    = string
-  default = "v1" # debe coincidir con la imagen que empujes a ECR
+  default = "v1" # must match the image tag pushed to ECR
 }

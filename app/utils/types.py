@@ -1,9 +1,9 @@
 from typing import Literal
 
-# Literal restringe los valores aceptados
+# Literal restricts the accepted values
 TableName = Literal["departments", "jobs", "employees"]
 
-# Encabezados estándar esperados para cada tabla
+# Standard expected headers for each table
 EXPECTED_HEADERS = {
     "departments": ["id", "name"],
     "jobs": ["id", "title"],

@@ -24,7 +24,7 @@ def _csv_response(rows, headers: list[str], filename: str) -> Response:
 def hiring_by_quarter(
     year: int = Query(2021, ge=1900, le=2100),
     format: str = Query("json", pattern="^(json|csv)$"),
-    include_unknown: bool = Query(True, description="Incluir filas sin dept/job como '(Unknown)'"),
+    include_unknown: bool = Query(True, description="Include rows without department/job as '(Unknown)'"),
     db: Session = Depends(get_db),
 ):
     dialect = db.bind.dialect.name
@@ -57,7 +57,7 @@ def hiring_by_quarter(
     else:
         unknown_filter = "" if include_unknown else "AND e.department_id IS NOT NULL AND e.job_id IS NOT NULL"
         sql = text(f"""
-          -- SQLite guarda la fecha como texto: usamos solo 'YYYY-MM-DD'
+          -- SQLite stores dates as text: use only 'YYYY-MM-DD'
           WITH norm AS (
             SELECT
               COALESCE(d.name, '(Unknown)') AS department,
@@ -99,7 +99,7 @@ def hiring_by_quarter(
 def departments_above_mean(
     year: int = Query(2021, ge=1900, le=2100),
     format: str = Query("json", pattern="^(json|csv)$"),
-    include_unknown: bool = Query(True, description="Incluir '(Unknown)' como departamento cuando falte"),
+    include_unknown: bool = Query(True, description="Include '(Unknown)' as department when missing"),
     db: Session = Depends(get_db),
 ):
     dialect = db.bind.dialect.name
@@ -108,7 +108,7 @@ def departments_above_mean(
     else:
         date_cond = "datetime(e.hire_date) >= datetime(:y || '-01-01T00:00:00Z') AND datetime(e.hire_date) < datetime(:y_next || '-01-01T00:00:00Z')"
 
-    # si no quieres unknown, exige dept no nulo
+    # Without unknowns, require a department
     base_where = date_cond + ("" if include_unknown else " AND e.department_id IS NOT NULL")
 
     sql = text(f"""

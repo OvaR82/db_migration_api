@@ -1,5 +1,5 @@
-# Mapeos de encabezados alternativos -> estándar esperado.
-# Si tus CSV usan nombres distintos, agrégalo aquí.
+# Alternative CSV header names -> expected standard column.
+# Add aliases here if your CSV files use different names.
 departments:
   id: ["id","dept_id","department_id"]
   name: ["name","department_name","dept_name"]

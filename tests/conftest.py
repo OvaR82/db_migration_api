@@ -3,7 +3,7 @@ import tempfile
 
 import pytest
 
-# La URL debe definirse antes de importar la app (app.db crea el engine al importarse).
+# Set the URL before importing the app (app.db creates the engine on import).
 _tmpdir = tempfile.mkdtemp()
 os.environ["SQLITE_URL"] = f"sqlite:///{os.path.join(_tmpdir, 'test.db')}"
 
@@ -28,7 +28,7 @@ def client():
 
 @pytest.fixture
 def loaded(client):
-    """Carga los CSV de ejemplo de data/."""
+    """Load the sample CSV files from data/."""
     for table in ("departments", "jobs", "employees"):
         r = client.post(
             "/ingest/csv",

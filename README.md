@@ -7,7 +7,7 @@ REST API (FastAPI + SQLAlchemy + Alembic) that loads historical HR data from CSV
 - Python 3.11 (the Docker image uses 3.11)
 - PostgreSQL 16 (or SQLite for quick local tests)
 - Docker & Docker Compose (optional)
-- Terraform >= 1.5 (optional, AWS deployment)
+- Terraform >= 1.5 and the gcloud CLI (optional, Google Cloud deployment)
 
 ## Local setup
 
@@ -137,18 +137,44 @@ pip install locust
 locust -f tests/performance/locustfile.py --host http://localhost:8000
 ```
 
-## AWS deployment (Terraform)
+## Google Cloud deployment (Terraform)
 
-`infra/aws` creates ECR, RDS PostgreSQL, a Secrets Manager secret with `DATABASE_URL`, and an ECS Fargate service behind a public ALB (HTTP).
+`infra/gcp` creates an Artifact Registry repository, a Cloud SQL PostgreSQL 16 instance, a Secret Manager secret with `DATABASE_URL` (random password, never stored in the repo), and a Cloud Run service with HTTPS. The container runs `alembic upgrade head` on startup, so the tables are created automatically.
+
+Requirements: a GCP project with billing enabled and permission to create these resources.
 
 ```bash
-cd infra/aws
-cp terraform.tfvars.example terraform.tfvars   # set db_password
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project <PROJECT_ID>
+
+cd infra/gcp
+cp terraform.tfvars.example terraform.tfvars   # set project_id
 terraform init
-terraform plan
+
+# 1. Enable the APIs and create the image repository
+terraform apply -target=google_project_service.services -target=google_artifact_registry_repository.api
+
+# 2. Build and push the image with Cloud Build (no local Docker needed)
+gcloud services enable cloudbuild.googleapis.com
+gcloud builds submit ../.. --tag <REGION>-docker.pkg.dev/<PROJECT_ID>/db-migration/api:v1
+
+# 3. Create Cloud SQL, the secret and the Cloud Run service
 terraform apply
 ```
 
-Then build the image and push it to the ECR repo from the `ecr_repo` output with the tag in `image_tag`. `terraform.tfvars` and the state files contain the database password and are git-ignored; keep them out of the repository.
+Then load the sample data and query the metrics:
 
-> The API has no authentication. Do not expose it publicly with real data without adding auth and HTTPS.
+```bash
+URL=$(terraform output -raw service_url)
+curl -F table=departments -F source_path=departments.csv $URL/ingest/csv
+curl -F table=jobs        -F source_path=jobs.csv        $URL/ingest/csv
+curl -F table=employees   -F source_path=employees.csv -F skip_invalid_rows=true $URL/ingest/csv
+curl "$URL/metrics/hiring_by_quarter?year=2021"
+```
+
+To deploy a new version, push the image with a new tag and run `terraform apply -var image_tag=<tag>`. To remove everything, run `terraform destroy`.
+
+Cost: Cloud Run scales to zero when idle; the main fixed cost is the Cloud SQL `db-f1-micro` instance. `terraform.tfvars` and the state files are git-ignored (the state contains the database password).
+
+> The API has no authentication. With `allow_unauthenticated = true` (default) the Cloud Run URL is public; set it to `false` before using real data.

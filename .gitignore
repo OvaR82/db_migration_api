@@ -19,3 +19,6 @@ venv/
 *.tfvars
 !*.tfvars.example
 crash.log
+
+# Local-only files
+.local/
